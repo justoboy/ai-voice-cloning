@@ -1,0 +1,13 @@
+TTS
+fastapi
+numpy
+soundfile
+pydantic
+aiofiles
+uvicorn
+requests
+tqdm
+packaging
+python-multipart
+sounddevice
+typing

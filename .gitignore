@@ -16,6 +16,7 @@ pyfastmp3decoder/
 onnx_test_stuff/
 *.whl
 *.exe
+/src/xtts/models/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -154,3 +155,5 @@ results/*
 debug_states/*
 bin/*
 
+/src/xtts/models/
+/src/xtts/models/

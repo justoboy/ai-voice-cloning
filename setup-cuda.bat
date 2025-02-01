@@ -13,6 +13,9 @@ if errorlevel 1 (
 git submodule init
 git submodule update
 
+:: Setup xtts
+call setup-xtts.bat
+
 :: Set up virtual environment with Python 3.11
 py -3.11 -m venv venv
 call .\venv\Scripts\activate.bat
