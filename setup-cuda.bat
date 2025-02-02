@@ -59,6 +59,8 @@ if not exist "%file_name%" (
 echo Extracting %file_name%...
 tar -xf %file_name%
 echo RVC has finished downloading and Extracting.
+echo Applying RVC args fix...
+xcopy args_fix.py %extracted_folder%\configs\config.py /y
 
 :: Install RVC requirements
 python -m pip install -r .\rvc\requirements.txt
