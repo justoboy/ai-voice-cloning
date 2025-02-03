@@ -1409,6 +1409,7 @@ def generate_tortoise(**kwargs):
         if progress is not None:
             notify_progress("Running through RVC...", progress=progress)
         generate_rvc(output_voices)
+    info['time'] = time.time() - start_time
 
     print(f"Generation took {info['time']} seconds, saved to '{output_voices[0]}'\n")
 
