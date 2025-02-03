@@ -11,6 +11,8 @@ import os
 import time
 import atexit
 
+from tqdm import tqdm
+
 refresh_symbol = '🔄'
 
 
@@ -50,8 +52,6 @@ def load_config(file_path):
         config = json.load(config_file)
     return config
 
-
-# TODO: check deepspeed config update
 
 def params_update(key):
     params.update(key)
@@ -147,13 +147,13 @@ params_update({"base_url": base_url})
 #### LOW VRAM ####
 ##################
 # LOW VRAM - Gradio Checkbox handling
-def send_lowvram_request(low_vram):
+def send_lowvram_request(low_vram, progress=gr.Progress(track_tqdm=True)):
     try:
-        params["tts_model_loaded"] = False
+        params_update({"tts_model_loaded": False})
         if low_vram:
-            audio_path = this_dir / "system" / "at_sounds" / "lowvramenabled.wav"
+            notify_progress("Enabling lowvram...", progress)
         else:
-            audio_path = this_dir / "system" / "at_sounds" / "lowvramdisabled.wav"
+            notify_progress("Disabling lowvram...", progress)
         url = f"{base_url}/api/lowvramsetting?new_low_vram_value={low_vram}"
         headers = {"Content-Type": "application/json"}
         response = requests.post(url, headers=headers)
@@ -162,8 +162,8 @@ def send_lowvram_request(low_vram):
         # Check if the low VRAM request was successful
         if json_response.get("status") == "lowvram-success":
             # Update any relevant variables or perform other actions on success
-            params["tts_model_loaded"] = True
-        return f'<audio src="file/{audio_path}" controls autoplay></audio>'
+            params_update({"tts_model_loaded": True})
+        return gr.update(value=low_vram)
     except requests.exceptions.RequestException as e:
         # Handle the HTTP request error
         print(f"[{params['branding']}Server] \033[91mWarning\033[0m Error during request to webserver process: {e}")
@@ -174,10 +174,11 @@ def send_lowvram_request(low_vram):
 #### MODEL LOADING AND UNLOADING ####
 #####################################
 # MODEL - Swap model based on Gradio selection API TTS, API Local, XTTSv2 Local
-def send_reload_request(tts_method):
+def send_reload_request(tts_method, progress=gr.Progress(track_tqdm=True)):
     global tts_method_xtts_ft
     try:
-        params["tts_model_loaded"] = False
+        notify_progress("Reloading...", progress)
+        params_update({"tts_model_loaded": False})
         url = f"{base_url}/api/reload"
         payload = {"tts_method": tts_method}
         response = requests.post(url, params=payload)
@@ -186,66 +187,72 @@ def send_reload_request(tts_method):
         # Check if the reload operation was successful
         if json_response.get("status") == "model-success":
             # Update tts_tts_model_loaded to True if the reload was successful
-            params["tts_model_loaded"] = True
+            params_update({"tts_model_loaded": True})
             # Update local script parameters based on the tts_method
             if tts_method == "API TTS":
                 params["tts_method_api_local"] = False
                 params["tts_method_xtts_local"] = False
                 params["tts_method_api_tts"] = True
                 params["deepspeed_activate"] = False
-                audio_path = this_dir / "system" / "at_sounds" / "apitts.wav"
                 tts_method_xtts_ft = False
             elif tts_method == "API Local":
                 params["tts_method_api_tts"] = False
                 params["tts_method_xtts_local"] = False
                 params["tts_method_api_local"] = True
                 params["deepspeed_activate"] = False
-                audio_path = this_dir / "system" / "at_sounds" / "apilocal.wav"
                 tts_method_xtts_ft = False
             elif tts_method == "XTTSv2 Local":
                 params["tts_method_api_tts"] = False
                 params["tts_method_api_local"] = False
                 params["tts_method_xtts_local"] = True
-                audio_path = this_dir / "system" / "at_sounds" / "xttslocal.wav"
                 tts_method_xtts_ft = False
             elif tts_method == "XTTSv2 FT":
                 params["tts_method_api_tts"] = False
                 params["tts_method_api_local"] = False
                 params["tts_method_xtts_local"] = False
-                audio_path = this_dir / "system" / "at_sounds" / "xttsfinetuned.wav"
                 tts_method_xtts_ft = True
-        return f'<audio src="file/{audio_path}" controls autoplay></audio>'
+        return gr.update(value=tts_method)
     except requests.exceptions.RequestException as e:
         # Handle the HTTP request error
         print(f"[{params['branding']}Server] \033[91mWarning\033[0m Error during request to webserver process: {e}")
-        return {"status": "error", "message": str(e)}
+        return gr.update(value="")
 
 
 ###################
 #### DeepSpeed ####
 ###################
 # DEEPSPEED - Reload the model when DeepSpeed checkbox is enabled/disabled
-def send_deepspeed_request(deepspeed_param):
+def send_deepspeed_request(deepspeed_param, progress=gr.Progress(track_tqdm=True)):
     try:
-        params["tts_model_loaded"] = False
+        params_update({"tts_model_loaded": False})
         if deepspeed_param:
-            audio_path = this_dir / "system" / "at_sounds" / "deepspeedenabled.wav"
+            notify_progress("Activating deepspeed...", progress)
         else:
-            audio_path = this_dir / "system" / "at_sounds" / "deepspeeddisabled.wav"
+            notify_progress("Disabling deepspeed...", progress)
         url = f"{base_url}/api/deepspeed?new_deepspeed_value={deepspeed_param}"
         headers = {"Content-Type": "application/json"}
         response = requests.post(url, headers=headers)
         response.raise_for_status()  # Raises an HTTPError for bad responses
         json_response = response.json()
         # Check if the deepspeed request was successful
-        if json_response.get("status") == "deepspeed-success":
+        if "success" in json_response.get("status"):
             # Update any relevant variables or perform other actions on success
-            params["tts_model_loaded"] = True
-        return f'<audio src="file/{audio_path}" controls autoplay></audio>'
-    except requests.exceptions.RequestException as e:
+            params_update({"tts_model_loaded": True})
+        return gr.update(value=deepspeed_param)
+    except requests.exceptions.RequestException as err:
         # Handle the HTTP request error
-        print(f"[{params['branding']}Server] \033[91mWarning\033[0m Error during request to webserver process: {e}")
-        return {"status": "error", "message": str(e)}
+        print(f"[{params['branding']}Server] \033[91mWarning\033[0m Error during request to webserver process: {err}")
+        return {"status": "error", "message": str(err)}
+
+
+def notify_progress(message, progress=None, verbose=True):
+    if verbose:
+        print(message)
+
+    if progress is None:
+        tqdm.write(message)
+    else:
+        progress(0, desc=message)
 
 
 ######################################
@@ -342,13 +349,11 @@ def ui():
         low_vram = gr.Checkbox(
             value=params["low_vram"], label="Enable Low VRAM Mode"
         )
-        low_vram_play = gr.HTML(visible=False)
         deepspeed_checkbox = gr.Checkbox(
             value=params["deepspeed_activate"],
             label="Enable DeepSpeed",
             visible=deepspeed_installed,
         )
-        deepspeed_checkbox_play = gr.HTML(visible=False)
         remove_trailing_dots = gr.Checkbox(
             value=params["remove_trailing_dots"], label='Remove trailing "."'
         )
@@ -363,7 +368,6 @@ def ui():
             label="TTS Method (Each method sounds slightly different)",
             value=gr_modelchoice,  # Set the default value
         )
-        tts_radio_buttons_play = gr.HTML(visible=False)
         with gr.Row():
             available_voices = get_available_voices()
             default_voice = params[
@@ -410,13 +414,18 @@ def ui():
 
     # Event functions to update the parameters in the backend
     low_vram.change(lambda x: params_update({"low_vram": x}), low_vram, None)
-    low_vram.change(lambda x: send_lowvram_request(x), low_vram, low_vram_play, None)
+    low_vram.change(lambda x: send_lowvram_request(x), low_vram, low_vram, None)
     tts_radio_buttons.change(
-        send_reload_request, tts_radio_buttons, tts_radio_buttons_play, None
+        send_reload_request, tts_radio_buttons, tts_radio_buttons, None
     )
     deepspeed_checkbox.change(
-        send_deepspeed_request, deepspeed_checkbox, deepspeed_checkbox_play, None
+        send_deepspeed_request, deepspeed_checkbox, deepspeed_checkbox, None
     )
+    deepspeed_checkbox.change(
+        lambda x: params_update({"deepspeed_activate": x}), deepspeed_checkbox, None
+    )
+    if params['deepspeed_activate']:
+        send_deepspeed_request(params['deepspeed_activate'])
     remove_trailing_dots.change(
         lambda x: params_update({"remove_trailing_dots": x}), remove_trailing_dots, None
     )
